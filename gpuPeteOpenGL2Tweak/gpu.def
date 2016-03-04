@@ -31,8 +31,10 @@ EXPORTS
 	GPUsetframelimit=EXPORT_GPUsetframelimit		@64
 	GPUvisualVibration=EXPORT_GPUvisualVibration	@65
 
-	GPUaddVertex=EXPORT_GPUaddVertex				@128
-	GPUclearVertex=EXPORT_GPUclearVertex			@129
-	GPUgetVertex=EXPORT_GPUgetVertex				@130
+	; GTE
+	GTEfifoInvalidate=EXPORT_GTEfifoInvalidate		@128
+	GTEfifoAdd=EXPORT_GTEfifoAdd					@129
+	GTEtransferToRam=EXPORT_GTEtransferToRam		@130
+	GTEwriteDataMem=EXPORT_GTEwriteDataMem			@131
 
 

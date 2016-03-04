@@ -24,51 +24,88 @@ struct OGLVertex
 {
 	float x;
 	float y;
-	float z;
+	//float z;
 };
 
-struct GTEVertex
-{
+#pragma pack(push, 4)
+typedef struct {
+	bool  valid;
 	float x;
 	float y;
-	float z;
-};
+	u16 z;
+	u32 addr;
+} gte_precision;
+#pragma pack(pop)
+
+static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
+0x7FFFFFFF, 0x1FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
 
 class GTEAccHack
 {
 private:
 	typedef BOOL(__cdecl* offset_fn)(void);
+	typedef void(__cdecl* primPoly_fn)(unsigned char *baseAddr);
 
-	std::array<s16*, 4> lx;
-	std::array<s16*, 4> ly;
+	std::array<short*, 4> lx;
+	std::array<short*, 4> ly;
+
+	std::array<gte_precision, 4> fxy;
 	std::array<OGLVertex*, 4> vertex;
 	s16* PSXDisplay_CumulOffset_x;
 	s16* PSXDisplay_CumulOffset_y;
-	s32* iDataReadMode;
 
-	std::array<std::array<GTEVertex, 0x1000>, 0x1000> gteCoords;
-	std::array<std::bitset<0x1000>, 0x1000> isCoordValid;
-	std::array<std::bitset<0x1000>, 0x1000> isCoordDrawn;
-	bool is_dirty = true;
+	std::array<gte_precision, 2048 * 1024 / 4> PrecisionRAM;
+	std::array<gte_precision, 4> precise_fifo;
 
-	void GetGTEVertex(s16 sx, s16 sy, OGLVertex* vertex);
-	void ClearCache();
+	u32* lUsedAddr;
+	bool updateAddress = true;
+	u32 currentAddress = 0;
+	u8 primCmd = 0;
 
 	void fix_offsets(s32 count);
 
-	static BOOL __cdecl offset3(void);
 	static offset_fn ooffset3;
+	static BOOL __cdecl offset3(void);
 
-	static BOOL __cdecl offset4(void);
 	static offset_fn ooffset4;
+	static BOOL __cdecl offset4(void);
+
+	static primPoly_fn oprimPolyF3;
+	static void __cdecl primPolyF3(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyFT3;
+	static void __cdecl primPolyFT3(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyF4;
+	static void __cdecl primPolyF4(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyFT4;
+	static void __cdecl primPolyFT4(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyG3;
+	static void __cdecl primPolyG3(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyGT3;
+	static void __cdecl primPolyGT3(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyG4;
+	static void __cdecl primPolyG4(unsigned char *baseAddr);
+
+	static primPoly_fn oprimPolyGT4;
+	static void __cdecl primPolyGT4(unsigned char *baseAddr);
+
+	void primPoly(u32* baseAddr);
 
 public:
 	GTEAccHack();
 	~GTEAccHack();
 
-	void AddGTEVertex(s16 sx, s16 sy, s64 llx, s64 lly, s64 llz);
-	void ClearGTEVertex(s16 sx, s16 sy, u16 z);
-	void ResetGTECache(bool single);
-	s32 GetGTEVertex(s16 sx, s16 sy, u16 z, float* x, float* y);
+	void GteFifoInvalidate(u32 cmd);
+	void GteFifoAdd(s64 llx, s64 lly, u16 z);
+	void GteTransferToRam(u32 address, u32 cmd);
+	void GTEwriteDataMem(u32* pMem, s32 size, u32 address);
+	void OnDmaChain(u32 * baseAddrL, u32 addr);
+	void OnWriteDataMem(u32* pMem, s32 iSize);
+
 };
 

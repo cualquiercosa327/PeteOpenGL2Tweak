@@ -77,12 +77,13 @@ public:
 
     s32 OnGPUinit();
     s32 OnGPUclose();
-    void OnGPUaddVertex(s16 sx, s16 sy, s64 fx, s64 fy, s64 fz);
-	void OnGPUclearVertex(s16 sx, s16 sy, u16 z);
-	u32 OnGPUreadData();
-	void OnGPUreadDataMem(u32* pMem, s32 iSize);
 	void OnGPUsetframelimit(u32 option);
-	s32 OnGPUgetVertex(s16 sx, s16 sy, u16 z, float* fx, float* fy);
+	s32 OnGPUdmaChain(u32 * baseAddrL, u32 addr);
+
+	void OnGteFifoInvalidate(u32 cmd);
+	void OnGteFifoAdd(s64 llx, s64 lly, u16 z);
+	void OnGteTransferToRam(u32 address, u32 cmd);
+	void OnGTEwriteDataMem(u32* pMem, s32 size, u32 address);
 
 private:
 	std::shared_ptr<Config> config;
@@ -91,7 +92,10 @@ private:
 	std::unique_ptr<TextureScaler> textureScaler;
 
 	static s32(CALLBACK* oGPUopen)(HWND hwndGPU);
-	static s32 CALLBACK Hook_GPUopen(HWND hwndGPU);
+	static s32 CALLBACK hookGPUopen(HWND hwndGPU);
+
+	static void (CALLBACK* oGPUwriteDataMem)(u32* pMem, s32 iSize);
+	static void CALLBACK hookGPUwriteDataMem(u32* pMem, s32 iSize);
 };
 
 template<typename N>

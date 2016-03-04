@@ -30,7 +30,8 @@ GTEAccHack::GTEAccHack()
 	PSXDisplay_CumulOffset_x = (s16*)GPUPlugin::Get().GetPluginMem(0x00051FFC);
 	PSXDisplay_CumulOffset_y = (s16*)GPUPlugin::Get().GetPluginMem(0x00051FFE);
 
-	iDataReadMode = (s32*)GPUPlugin::Get().GetPluginMem(0x00051F2C);
+	//dword_10052130 = dmaMem;
+	lUsedAddr = (u32*)GPUPlugin::Get().GetPluginMem(0x00052130);
 
 	offset_fn offset3 = (offset_fn)GPUPlugin::Get().GetPluginMem(0x000041B0);
 	CreateHook(offset3, GTEAccHack::offset3, &ooffset3);
@@ -40,7 +41,37 @@ GTEAccHack::GTEAccHack()
 	CreateHook(offset4, GTEAccHack::offset4, &ooffset4);
 	EnableHook(offset4);
 
-	ClearCache();
+	primPoly_fn primPolyF3 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001BFF0);
+	CreateHook(primPolyF3, GTEAccHack::primPolyF3, &oprimPolyF3);
+	EnableHook(primPolyF3);
+
+	primPoly_fn primPolyFT3 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001A620);
+	CreateHook(primPolyFT3, GTEAccHack::primPolyFT3, &oprimPolyFT3);
+	EnableHook(primPolyFT3);
+
+	primPoly_fn primPolyF4 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x00019DD0);
+	CreateHook(primPolyF4, GTEAccHack::primPolyF4, &oprimPolyF4);
+	EnableHook(primPolyF4);
+
+	primPoly_fn primPolyFT4 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001AFB0);
+	CreateHook(primPolyFT4, GTEAccHack::primPolyFT4, &oprimPolyFT4);
+	EnableHook(primPolyFT4);
+
+	primPoly_fn primPolyG3 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001B880);
+	CreateHook(primPolyG3, GTEAccHack::primPolyG3, &oprimPolyG3);
+	EnableHook(primPolyG3);
+
+	primPoly_fn primPolyGT3 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001B3B0);
+	CreateHook(primPolyGT3, GTEAccHack::primPolyGT3, &oprimPolyGT3);
+	EnableHook(primPolyGT3);
+
+	primPoly_fn primPolyG4 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x00019F60);
+	CreateHook(primPolyG4, GTEAccHack::primPolyG4, &oprimPolyG4);
+	EnableHook(primPolyG4);
+
+	primPoly_fn primPolyGT4 = (primPoly_fn)GPUPlugin::Get().GetPluginMem(0x0001BA40);
+	CreateHook(primPolyGT4, GTEAccHack::primPolyGT4, &oprimPolyGT4);
+	EnableHook(primPolyGT4);
 
 	PLUGINLOG("GTE Accuracy Hack Enabled");
 }
@@ -49,130 +80,167 @@ GTEAccHack::~GTEAccHack()
 {
 }
 
-void GTEAccHack::ResetGTECache(bool single)
+void GTEAccHack::GteFifoInvalidate(u32 cmd)
 {
-	if (*iDataReadMode == 1 || single)
-		ClearCache();
-}
-
-void GTEAccHack::ClearCache()
-{
-	if (is_dirty)
+	switch (cmd)
 	{
-		//isCoordValid.fill(0);
+	case 12:
+		precise_fifo[0].valid = false;
+		break;
+	case 13:
+		precise_fifo[1].valid = false;
+		break;
+	case 14:
+		precise_fifo[2].valid = false;
+		break;
+	case 15:
+		precise_fifo[0] = precise_fifo[1];
+		precise_fifo[1] = precise_fifo[2];
+		precise_fifo[2] = precise_fifo[3];
+
+		precise_fifo[3].valid = precise_fifo[2].valid = false;
+		break;
 	}
 }
 
-void GTEAccHack::GetGTEVertex(s16 sx, s16 sy, OGLVertex* vertex)
+void GTEAccHack::GteFifoAdd(s64 llx, s64 lly, u16 z)
 {
-	if (sx < -0x800 || sx >= 0x800 || sy < -0x800 || sy >= 0x800)
-		return; // Out of range
+	precise_fifo[0] = precise_fifo[1];
+	precise_fifo[1] = precise_fifo[2];
+	precise_fifo[2] = precise_fifo[3];
 
-	u16 x = sx + 0x800;
-	u16 y = sy + 0x800;
-
-	if (!isCoordValid[x][y])
-		return;
-
-	vertex->x = gteCoords[x][y].x + *PSXDisplay_CumulOffset_x;
-	vertex->y = gteCoords[x][y].y + *PSXDisplay_CumulOffset_y;
-
-	isCoordDrawn[x][y] = true;
+	precise_fifo[3].x = llx / (float)(1 << 16);
+	precise_fifo[3].y = lly / (float)(1 << 16);
+	precise_fifo[3].z = z;
+	precise_fifo[3].valid = true;
 }
 
-s32 GTEAccHack::GetGTEVertex(s16 sx, s16 sy, u16 z, float* fx, float* fy)
+void GTEAccHack::GteTransferToRam(u32 address, u32 cmd)
 {
-	if (sx < -0x800 || sx >= 0x800 || sy < -0x800 || sy >= 0x800)
-		return 0; // Out of range
+	uint32_t paddr = address & addr_mask[address >> 29];
 
-	u16 x = sx + 0x800;
-	u16 y = sy + 0x800;
-
-	if (!isCoordValid[x][y] || gteCoords[x][y].z != z)
-		return 0;
-
-	//PLUGINLOG("%d %d %u", sx, sy, z);
-
-	*fx = gteCoords[x][y].x;
-	*fy = gteCoords[x][y].y;
-
-	return 1;
-}
-
-float lerp(float x, float y, float s)
-{
-	return x*(1 - s) + y*s;
-}
-
-void GTEAccHack::AddGTEVertex(s16 sx, s16 sy, s64 llx, s64 lly, s64 llz)
-{
-	if (sx < -0x800 || sx >= 0x800 || sy < -0x800 || sy >= 0x800)
-		return; // Out of range
-
-	u16 x = sx + 0x800;
-	u16 y = sy + 0x800;
-
-	float fx = float(llx) / float(1 << 16);
-	float fy = float(lly) / float(1 << 16);
-
-	u16 z = (u16)llz;
-
-	if (std::fabs(sx - fx) >= 1.0f || std::fabs(sy - fy) >= 1.0f)
+	if (paddr >= 0x00800000)
 		return;
 
-	if (gteCoords[x][y].x == fx && gteCoords[x][y].y == fy && gteCoords[x][y].z == z)
-		return;
+	// Store to RAM
+	paddr = (paddr & 0x1FFFFF) >> 2;
 
-#if 0
-	if (isCoordValid[x][y] && gteCoords[x][y].z == z && !isCoordDrawn[x][y])
+	gte_precision* p = nullptr;
+
+	switch (cmd) {
+	case 12:
+		p = &precise_fifo[0];
+		break;
+
+	case 13:
+		p = &precise_fifo[1];
+		break;
+
+	case 14:
+		p = &precise_fifo[2];
+		break;
+
+	case 15:
+		p = &precise_fifo[3];
+		break;
+	}
+
+	if (p)
 	{
-		float lerpx = lerp(gteCoords[x][y].x, fx, 0.5);
-		float lerpy = lerp(gteCoords[x][y].y, fy, 0.5);
+		PrecisionRAM[paddr] = *p;
 
-		//PLUGINLOG("%f %f %f %f %f %f", gteCoords[x][y].x, gteCoords[x][y].y, fx, fy, lerpx, lerpy);
+		//PLUGINLOG("GteTransferToRam %X %X %u %f %f", address, paddr, cmd, PrecisionRAM[paddr].x, PrecisionRAM[paddr].y);
+	}
 
-		gteCoords[x][y].x = lerpx;
-		gteCoords[x][y].y = lerpy;
-		gteCoords[x][y].z = z;
+}
 
-		isCoordValid[x][y] = is_dirty = true;
-		isCoordDrawn[x][y] = false;
+void GTEAccHack::GTEwriteDataMem(u32* pMem, s32 size, u32 address)
+{
+	//unsigned char command;
+	//uint32_t gdata = 0;
 
+	//for (int i = 0; i < size; ++i)
+	{
+		//gdata = *pMem;
+		//command = (unsigned char)((gdata >> 24) & 0xff);
+
+		//PLUGINLOG("GTEwriteDataMem %p %d %X %X", pMem, size, address, command);
+	}
+
+}
+
+void GTEAccHack::OnDmaChain(u32 * baseAddrL, u32 addr)
+{
+	//currentAddress = *lUsedAddr;
+}
+
+void GTEAccHack::OnWriteDataMem(u32* pMem, s32 iSize)
+{
+	currentAddress = (*lUsedAddr & 0x1FFFFF) >> 2;
+	//primCmd = ((*pMem >> 24) & 0xff);
+
+	//PLUGINLOG("OnWriteDataMem %X %X", primCmd, addr);
+}
+
+void GTEAccHack::primPoly(u32* baseAddr)
+{
+	u8 primCmd = ((*baseAddr >> 24) & 0xff);
+	switch (primCmd)
+	{
+	case 0x34:
+		currentAddress += 4;
+		fxy[0] = PrecisionRAM[currentAddress];  //short[2];
+		fxy[0].addr = currentAddress;
+
+		currentAddress += 12;
+		fxy[1] = PrecisionRAM[currentAddress]; //short[8];
+		fxy[1].addr = currentAddress;
+
+		currentAddress += 12;
+		fxy[2] = PrecisionRAM[currentAddress]; //short[14];
+		fxy[2].addr = currentAddress;
+		break;
+
+	case 0x3C:
+		currentAddress += 4;
+		fxy[0] = PrecisionRAM[currentAddress];  //short[2];
+		fxy[0].addr = currentAddress;
+
+		currentAddress += 12;
+		fxy[1] = PrecisionRAM[currentAddress]; //short[8];
+		fxy[1].addr = currentAddress;
+
+		currentAddress += 12;
+		fxy[2] = PrecisionRAM[currentAddress]; //short[14];
+		fxy[2].addr = currentAddress;
+
+		currentAddress += 12;
+		fxy[3] = PrecisionRAM[currentAddress]; //short[20];
+		fxy[3].addr = currentAddress;
+		break;
+
+	default:
 		return;
 	}
-#endif // 0
 
-
-	gteCoords[x][y].x = fx;
-	gteCoords[x][y].y = fy;
-	gteCoords[x][y].z = z;
-
-	isCoordValid[x][y] = is_dirty = true;
-	isCoordDrawn[x][y] = false;
+	PLUGINLOG("primPoly %X", primCmd);
 }
 
-void GTEAccHack::ClearGTEVertex(s16 sx, s16 sy, u16 z)
-{
-	if (sx < -0x800 || sx >= 0x800 || sy < -0x800 || sy >= 0x800)
-		return; // Out of range
-
-	s32 x = sx + 0x800;
-	s32 y = sy + 0x800;
-
-	if (gteCoords[x][y].z == z && !isCoordDrawn[x][y])
-	{
-		//PLUGINLOG("%d %d %u", sx, sy, z);
-		isCoordValid[x][y] = false;
-	}
-}
 
 void GTEAccHack::fix_offsets(s32 count)
 {
-	concurrency::parallel_for(0, count, 1, [&](const int& i)
+	for (int i = 0; i < count; ++i)
 	{
-		GetGTEVertex(*lx[i], *ly[i], vertex[i]);
+		if (fxy[i].valid)
+		{
+			vertex[i]->x = fxy[i].x + *PSXDisplay_CumulOffset_x;
+			vertex[i]->y = fxy[i].y + *PSXDisplay_CumulOffset_y;
+		}
+
+		//PLUGINLOG("fix_offsets2 %d-%d %X %X %s %f %f %d %d", i, count, primCmd, fxy[i].addr, fxy[i].valid ? "true" : "false", vertex[i]->x, vertex[i]->y, *lx[i], *ly[i]);
 	}
-	);
+
+	currentAddress = 0;
 }
 
 GTEAccHack::offset_fn GTEAccHack::ooffset3;
@@ -189,4 +257,60 @@ BOOL __cdecl GTEAccHack::offset4(void)
 	BOOL ret = ooffset4();
 	s_GTEAccHack->fix_offsets(4);
 	return ret;
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyF3;
+void __cdecl GTEAccHack::primPolyF3(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyF3(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyFT3;
+void __cdecl GTEAccHack::primPolyFT3(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyFT3(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyF4;
+void __cdecl GTEAccHack::primPolyF4(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyF4(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyFT4;
+void __cdecl GTEAccHack::primPolyFT4(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyFT4(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyG3;
+void __cdecl GTEAccHack::primPolyG3(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyG3(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyGT3;
+void __cdecl GTEAccHack::primPolyGT3(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyGT3(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyG4;
+void __cdecl GTEAccHack::primPolyG4(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyG4(baseAddr);
+}
+
+GTEAccHack::primPoly_fn GTEAccHack::oprimPolyGT4;
+void __cdecl GTEAccHack::primPolyGT4(unsigned char *baseAddr)
+{
+	s_GTEAccHack->primPoly((u32*)baseAddr);
+	oprimPolyGT4(baseAddr);
 }
