@@ -174,56 +174,55 @@ void GTEAccHack::OnDmaChain(u32 * baseAddrL, u32 addr)
 	//currentAddress = *lUsedAddr;
 }
 
+static u8 sprimCmd;
+
 void GTEAccHack::OnWriteDataMem(u32* pMem, s32 iSize)
 {
-	currentAddress = (*lUsedAddr & 0x1FFFFF) >> 2;
-	//primCmd = ((*pMem >> 24) & 0xff);
+	currentAddress = (*lUsedAddr + 4) >> 2;
+	sprimCmd = ((*pMem >> 24) & 0xff);
 
 	//PLUGINLOG("OnWriteDataMem %X %X", primCmd, addr);
 }
 
 void GTEAccHack::primPoly(u32* baseAddr)
 {
+	if (!currentAddress)
+		return;
+
 	u8 primCmd = ((*baseAddr >> 24) & 0xff);
+	uint32_t *gpuData = ((uint32_t *)baseAddr);
+	short *sgpuData = ((short *)baseAddr);
+
+	//PLUGINLOG("primPolyX %X %d %d %d %f %f %f", primCmd, sgpuData[2], sgpuData[8], sgpuData[14], PrecisionRAM[currentAddress + 4].x, PrecisionRAM[currentAddress + 16].x, PrecisionRAM[currentAddress + 28].x);
+	//PLUGINLOG("primPolyY %X %d %d %d %f %f %f", primCmd, sgpuData[3], sgpuData[9], sgpuData[15], PrecisionRAM[currentAddress + 6].y, PrecisionRAM[currentAddress + 18].y, PrecisionRAM[currentAddress + 30].y);
+
+	//for (int i = 0; i < 40; ++i) PLUGINLOG("test %d %X %d %d %f %f", i, currentAddress + i, sgpuData[i], sgpuData[(i + 1)], PrecisionRAM[currentAddress + i].x, PrecisionRAM[currentAddress + i].y);
+
+	if (sprimCmd != primCmd)
+		return;
+
 	switch (primCmd)
 	{
 	case 0x34:
-		currentAddress += 4;
-		fxy[0] = PrecisionRAM[currentAddress];  //short[2];
-		fxy[0].addr = currentAddress;
-
-		currentAddress += 12;
-		fxy[1] = PrecisionRAM[currentAddress]; //short[8];
-		fxy[1].addr = currentAddress;
-
-		currentAddress += 12;
-		fxy[2] = PrecisionRAM[currentAddress]; //short[14];
-		fxy[2].addr = currentAddress;
+		fxy[0] = PrecisionRAM[currentAddress + 1];	//short[2];
+		fxy[1] = PrecisionRAM[currentAddress + 4];	//short[8];
+		fxy[2] = PrecisionRAM[currentAddress + 7];	//short[14];
 		break;
 
 	case 0x3C:
-		currentAddress += 4;
-		fxy[0] = PrecisionRAM[currentAddress];  //short[2];
-		fxy[0].addr = currentAddress;
-
-		currentAddress += 12;
-		fxy[1] = PrecisionRAM[currentAddress]; //short[8];
-		fxy[1].addr = currentAddress;
-
-		currentAddress += 12;
-		fxy[2] = PrecisionRAM[currentAddress]; //short[14];
-		fxy[2].addr = currentAddress;
-
-		currentAddress += 12;
-		fxy[3] = PrecisionRAM[currentAddress]; //short[20];
-		fxy[3].addr = currentAddress;
+		fxy[0] = PrecisionRAM[currentAddress + 1];	//short[2];
+		fxy[1] = PrecisionRAM[currentAddress + 4];	//short[8];
+		fxy[2] = PrecisionRAM[currentAddress + 7];	//short[14];
+		fxy[3] = PrecisionRAM[currentAddress + 10];	//short[20];
 		break;
 
 	default:
 		return;
 	}
 
-	PLUGINLOG("primPoly %X", primCmd);
+	PLUGINLOG("%X %fx%f %fx%f %fx%f %fx%f", primCmd, fxy[0].x, fxy[0].y, fxy[1].x, fxy[1].y, fxy[2].x, fxy[2].y, fxy[3].x, fxy[3].y);
+	
+	currentAddress = 0;
 }
 
 
@@ -236,11 +235,7 @@ void GTEAccHack::fix_offsets(s32 count)
 			vertex[i]->x = fxy[i].x + *PSXDisplay_CumulOffset_x;
 			vertex[i]->y = fxy[i].y + *PSXDisplay_CumulOffset_y;
 		}
-
-		//PLUGINLOG("fix_offsets2 %d-%d %X %X %s %f %f %d %d", i, count, primCmd, fxy[i].addr, fxy[i].valid ? "true" : "false", vertex[i]->x, vertex[i]->y, *lx[i], *ly[i]);
 	}
-
-	currentAddress = 0;
 }
 
 GTEAccHack::offset_fn GTEAccHack::ooffset3;

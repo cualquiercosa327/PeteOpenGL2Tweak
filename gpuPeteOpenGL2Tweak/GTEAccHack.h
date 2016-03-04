@@ -33,7 +33,6 @@ typedef struct {
 	float x;
 	float y;
 	u16 z;
-	u32 addr;
 } gte_precision;
 #pragma pack(pop)
 
@@ -50,11 +49,13 @@ private:
 	std::array<short*, 4> ly;
 
 	std::array<gte_precision, 4> fxy;
+
 	std::array<OGLVertex*, 4> vertex;
 	s16* PSXDisplay_CumulOffset_x;
 	s16* PSXDisplay_CumulOffset_y;
 
-	std::array<gte_precision, 2048 * 1024 / 4> PrecisionRAM;
+	//std::array<gte_precision, 2048 * 1024 / 4> PrecisionRAM;
+	std::unordered_map<u32, gte_precision> PrecisionRAM;
 	std::array<gte_precision, 4> precise_fifo;
 
 	u32* lUsedAddr;
