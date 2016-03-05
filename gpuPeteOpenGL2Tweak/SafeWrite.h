@@ -14,3 +14,16 @@ inline bool SafeWrite(void* addr, const T data)
     }
     return false;
 }
+
+inline bool SafeWriteBuf(void* addr, const unsigned char* data, size_t size)
+{
+	DWORD oldProtect;
+	if (VirtualProtect(addr, size, PAGE_EXECUTE_READWRITE, &oldProtect))
+	{
+		memcpy(addr, data, size);
+		VirtualProtect(addr, size, oldProtect, &oldProtect);
+		return true;
+	}
+	return false;
+}
+

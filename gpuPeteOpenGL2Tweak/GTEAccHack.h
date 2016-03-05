@@ -27,14 +27,12 @@ struct OGLVertex
 	//float z;
 };
 
-#pragma pack(push, 4)
 typedef struct {
-	bool  valid;
+	bool valid;
 	float x;
 	float y;
 	u16 z;
 } gte_precision;
-#pragma pack(pop)
 
 static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
 0x7FFFFFFF, 0x1FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
@@ -59,9 +57,9 @@ private:
 	std::array<gte_precision, 4> precise_fifo;
 
 	u32* lUsedAddr;
+	int* gpuDataP;
 	bool updateAddress = true;
 	u32 currentAddress = 0;
-	u8 primCmd = 0;
 
 	void fix_offsets(s32 count);
 
