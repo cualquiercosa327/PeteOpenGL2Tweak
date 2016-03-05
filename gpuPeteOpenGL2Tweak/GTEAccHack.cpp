@@ -95,25 +95,25 @@ void GTEAccHack::GteFifoInvalidate(u32 cmd)
 		precise_fifo[2].valid = false;
 		break;
 	case 15:
-		//precise_fifo[0] = precise_fifo[1];
-		//precise_fifo[1] = precise_fifo[2];
-		//precise_fifo[2] = precise_fifo[3];
-
 		precise_fifo[3].valid = false;
+
+		precise_fifo[0] = precise_fifo[1];
+		precise_fifo[1] = precise_fifo[2];
+		precise_fifo[2] = precise_fifo[3];
 		break;
 	}
 }
 
 void GTEAccHack::GteFifoAdd(s64 llx, s64 lly, u16 z)
 {
+	precise_fifo[3].x = float(llx) / float(1 << 16);
+	precise_fifo[3].y = float(lly) / float(1 << 16);
+	precise_fifo[3].z = z;
+	precise_fifo[3].valid = true;
+
 	precise_fifo[0] = precise_fifo[1];
 	precise_fifo[1] = precise_fifo[2];
-	//precise_fifo[2] = precise_fifo[3];
-
-	precise_fifo[2].x = llx / (float)(1 << 16);
-	precise_fifo[2].y = lly / (float)(1 << 16);
-	precise_fifo[2].z = z;
-	precise_fifo[2].valid = true;
+	precise_fifo[2] = precise_fifo[3];
 }
 
 void GTEAccHack::GteTransferToRam(u32 address, u32 cmd)
@@ -149,11 +149,11 @@ void GTEAccHack::GteTransferToRam(u32 address, u32 cmd)
 	if (p)
 	{
 		if (p->valid)
+		{
 			PrecisionRAM[paddr] = *p;
-
-		//p->valid = false;
-
-		//PLUGINLOG("GteTransferToRam %X %X %u %f %f", address, paddr, cmd, PrecisionRAM[paddr].x, PrecisionRAM[paddr].y);
+			p->valid = false;
+			//PLUGINLOG("GteTransferToRam %X %X %u %f %f", address, paddr, cmd, PrecisionRAM[paddr].x, PrecisionRAM[paddr].y);
+		}
 	}
 
 }
@@ -171,6 +171,10 @@ void GTEAccHack::GTEwriteDataMem(u32* pMem, s32 size, u32 address)
 		//PLUGINLOG("GTEwriteDataMem %p %d %X %X", pMem, size, address, command);
 	}
 
+	uint32_t paddr = address & addr_mask[address >> 29];
+	if (paddr >= 0x00800000)
+		return;
+	currentAddress = (paddr & 0x1FFFFF) >> 2;
 }
 
 void GTEAccHack::OnDmaChain(u32 * baseAddrL, u32 addr)
