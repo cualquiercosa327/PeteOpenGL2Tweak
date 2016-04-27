@@ -25,7 +25,7 @@ struct OGLVertex
 {
 	float x;
 	float y;
-	//float z;
+	float z;
 };
 
 typedef struct
@@ -35,6 +35,7 @@ typedef struct
 	float	z;
 	unsigned int	valid;
 	unsigned int	count;
+	unsigned int	value;
 } PGXP_vertex;
 
 static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
@@ -45,6 +46,7 @@ class PGXP
 private:
 	typedef BOOL(__cdecl* offset_fn)(void);
 	typedef void(__cdecl* primPoly_fn)(unsigned char *baseAddr);
+	typedef void(__cdecl* ortho_fn)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble nearVal, GLdouble farVal);
 
 	std::array<short*, 4> lx;
 	std::array<short*, 4> ly;
@@ -92,7 +94,11 @@ private:
 	static primPoly_fn oprimPolyGT4;
 	static void __cdecl primPolyGT4(unsigned char *baseAddr);
 
+	static void(APIENTRY* oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+	static void APIENTRY Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+
 	void GetVertices(u32* baseAddr);
+	void ResetVertex();
 
 public:
 	PGXP();

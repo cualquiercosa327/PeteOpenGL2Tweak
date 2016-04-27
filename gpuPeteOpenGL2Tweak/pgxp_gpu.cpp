@@ -75,6 +75,9 @@ PGXP::PGXP()
 	CreateHook(primPolyGT4, PGXP::primPolyGT4, &oprimPolyGT4);
 	EnableHook(primPolyGT4);
 
+	CreateHook(glOrtho, Hook_glOrtho, reinterpret_cast<void**>(&oglOrtho));
+	EnableHook(glOrtho);
+
 	PLUGINLOG("PGXP Enabled");
 }
 
@@ -92,6 +95,15 @@ void PGXP::SetMemoryPtr(unsigned int addr, unsigned char* pVRAM)
 void PGXP::SetAddress()
 {
 	currentAddr = (*lUsedAddr + 4) >> 2;
+}
+
+void PGXP::ResetVertex()
+{
+	for (unsigned int i = 0; i < 4; i++)	//iCB: remove stale vertex data
+	{
+		vertex[i]->x = vertex[i]->y = 0.f;
+		vertex[i]->z = 1.f;
+	}
 }
 
 void PGXP::GetVertices(u32* addr)
@@ -125,12 +137,27 @@ void PGXP::GetVertices(u32* addr)
 
 void PGXP::fix_offsets(s32 count)
 {
+	u32 invalidVert = 0;
+
+	// Find any invalid vertices
+	for (unsigned i = 0; i < count; ++i)
+	{
+		if (!fxy[i].valid)
+			invalidVert++;
+	}
+
 	for (int i = 0; i < count; ++i)
 	{
+		float w = fxy[i].z;
+
+		//if (invalidVert > 0)
+			w = 1;
+
 		if (fxy[i].valid /*&& std::fabs(fxy[i].x - *lx[i]) < 1.0f && std::fabs(fxy[i].y - *ly[i]) < 1.0f*/)
 		{
-			vertex[i]->x = fxy[i].x + *PSXDisplay_CumulOffset_x;
-			vertex[i]->y = fxy[i].y + *PSXDisplay_CumulOffset_y;
+			vertex[i]->x = (fxy[i].x + *PSXDisplay_CumulOffset_x) * w;
+			vertex[i]->y = (fxy[i].y + *PSXDisplay_CumulOffset_y) * w;
+			vertex[i]->z = w;
 		}
 	}
 }
@@ -156,6 +183,7 @@ void __cdecl PGXP::primPolyF3(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyF3(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyFT3;
@@ -163,6 +191,7 @@ void __cdecl PGXP::primPolyFT3(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyFT3(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyF4;
@@ -170,6 +199,7 @@ void __cdecl PGXP::primPolyF4(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyF4(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyFT4;
@@ -177,6 +207,7 @@ void __cdecl PGXP::primPolyFT4(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyFT4(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyG3;
@@ -184,6 +215,7 @@ void __cdecl PGXP::primPolyG3(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyG3(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyGT3;
@@ -191,6 +223,7 @@ void __cdecl PGXP::primPolyGT3(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyGT3(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyG4;
@@ -198,6 +231,7 @@ void __cdecl PGXP::primPolyG4(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyG4(baseAddr);
+	s_PGXP->ResetVertex();
 }
 
 PGXP::primPoly_fn PGXP::oprimPolyGT4;
@@ -205,4 +239,46 @@ void __cdecl PGXP::primPolyGT4(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyGT4(baseAddr);
+	s_PGXP->ResetVertex();
+}
+
+void (APIENTRY* PGXP::oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+void APIENTRY PGXP::Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar)
+{
+	GLfloat m[16];
+	for (unsigned int i = 0; i < 16; ++i)
+		m[i] = 0.f;
+
+	// iCB: Implementation of glOrtho for reference and testing
+	//if ((right-left) != 0)
+	//{
+	//	m[0] = 2 / (right - left);
+	//	m[12] = -((right + left) / (right - left));
+	//}
+	//if ((top-bottom) != 0)
+	//{
+	//	m[5] = 2 / (top - bottom);
+	//	m[13] = -((top + bottom) / (top - bottom));
+	//}
+	//m[10] = -2 / (zFar - zNear);
+	//m[14] = -((zFar + zNear) / (zFar - zNear));
+	//m[15] = 1;
+
+	// iCB: Substitute z value for w
+	//if ((right - left) != 0)
+	//{
+	//	m[0] = 2 / (right - left);
+	//	m[8] = -((right + left) / (right - left));
+	//}
+	//if ((top - bottom) != 0)
+	//{
+	//	m[5] = 2 / (top - bottom);
+	//	m[9] = -((top + bottom) / (top - bottom));
+	//}
+	//m[10] = -2 / (zFar - zNear);
+	//m[14] = -((zFar + zNear) / (zFar - zNear));
+	//m[11] = 1;
+
+	//glLoadMatrixf(m);
+	oglOrtho(left, right, bottom, top, zNear, zFar);
 }
