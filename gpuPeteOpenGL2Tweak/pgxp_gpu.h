@@ -52,6 +52,8 @@ private:
 	std::array<short*, 4> ly;
 
 	std::array<PGXP_vertex, 4> fxy;
+	u32 numVertices;	// iCB: Used for glVertex3fv fix
+	u32 vertexIdx;
 
 	std::array<OGLVertex*, 4> vertex;
 	s16* PSXDisplay_CumulOffset_x;
@@ -96,6 +98,9 @@ private:
 
 	static void(APIENTRY* oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 	static void APIENTRY Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
+
+	static void(APIENTRY* oglVertex3fv)(const GLfloat * v);
+	static void APIENTRY Hook_glVertex3fv(const GLfloat * v);
 
 	void GetVertices(u32* baseAddr);
 	void ResetVertex();
