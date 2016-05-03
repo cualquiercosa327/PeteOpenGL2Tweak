@@ -108,7 +108,14 @@ inline void EnableHookF(LPVOID pTarget, const char* pTargetName)
 	PLUGINLOG("EnableHook %s status %s", pTargetName, MH_StatusToString(status));
 }
 
+inline void DisableHookF(LPVOID pTarget, const char* pTargetName)
+{
+	MH_STATUS status = MH_DisableHook(pTarget);
+	PLUGINLOG("DisableHook %s status %s", pTargetName, MH_StatusToString(status));
+}
+
 #define CreateHook(pTarget, pDetour, ppOrgiginal) CreateHookF(pTarget, pDetour, ppOrgiginal, #pTarget)
 #define EnableHook(pTarget) EnableHookF(pTarget, #pTarget)
+#define DisableHook(pTarget) DisableHookF(pTarget, #pTarget)
 
 static Context& context = Context::instance;

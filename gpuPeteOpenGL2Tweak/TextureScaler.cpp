@@ -36,6 +36,8 @@ TextureScaler::TextureScaler()
 
 TextureScaler::~TextureScaler()
 {
+	DisableHook(glTexImage2D);
+	DisableHook(glTexSubImage2D);
 }
 
 void (APIENTRY* TextureScaler::oglTexSubImage2D)(GLenum target, GLint level, GLint xoffset, GLint yoffset, GLsizei width, GLsizei height, GLenum format, GLenum type, const GLvoid *pixels);

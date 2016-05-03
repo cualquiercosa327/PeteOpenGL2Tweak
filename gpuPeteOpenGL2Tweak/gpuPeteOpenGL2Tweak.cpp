@@ -28,15 +28,6 @@ s32 Context::OnGPUinit()
 	CreateHook(GPUPlugin::Get().GPUwriteDataMem, hookGPUwriteDataMem, reinterpret_cast<void**>(&oGPUwriteDataMem));
 	EnableHook(GPUPlugin::Get().GPUwriteDataMem);
 
-	if (config->GetxBRZScale() > 1)
-	{
-		if (!textureScaler)
-			textureScaler.reset(new TextureScaler);
-	}
-
-	if (!pgxp)
-		pgxp.reset(new PGXP);
-
 	if (config->GetMulX() > 0 && config->GetMulY() > 0)
 		gpuPatches->ResHack(config->GetMulX(), config->GetMulY());
 
@@ -46,6 +37,16 @@ s32 Context::OnGPUinit()
 s32(CALLBACK* Context::oGPUopen)(HWND hwndGPU);
 s32 CALLBACK Context::hookGPUopen(HWND hwndGPU)
 {
+	// iCB: Recreate components with OpenGL hooks
+	if (context.config->GetxBRZScale() > 1)
+	{
+		if (!context.textureScaler)
+			context.textureScaler.reset(new TextureScaler);
+	}
+
+	if (!context.pgxp)
+		context.pgxp.reset(new PGXP);
+
 	s32 ret = oGPUopen(hwndGPU);
 
 	static std::once_flag glewInitFlag;
@@ -84,7 +85,17 @@ s32 Context::OnGPUclose()
 		gpuPatches->EnableVsync(0);
 
 	if (config->GetHideCursor()) while (ShowCursor(TRUE) < 0);
-	return GPUPlugin::Get().GPUclose();
+	
+	s32 ret = GPUPlugin::Get().GPUclose();
+
+	// iCB: Destroy components so that they will release OpenGL hooks
+	if (textureScaler)
+		textureScaler.reset(NULL);
+
+	if (pgxp)
+		pgxp.reset(NULL);
+
+	return ret;
 }
 
 void Context::OnGPUsetframelimit(u32 option)

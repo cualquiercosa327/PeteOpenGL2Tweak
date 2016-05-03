@@ -89,6 +89,7 @@ PGXP::PGXP()
 
 PGXP::~PGXP()
 {
+	DisableHook(glVertex3fv);
 }
 
 void PGXP::SetMemoryPtr(unsigned int addr, unsigned char* pVRAM)
