@@ -78,8 +78,8 @@ PGXP::PGXP()
 	CreateHook(primPolyGT4, PGXP::primPolyGT4, &oprimPolyGT4);
 	EnableHook(primPolyGT4);
 
-	//CreateHook(glOrtho, Hook_glOrtho, reinterpret_cast<void**>(&oglOrtho));
-	//EnableHook(glOrtho);
+	CreateHook(glOrtho, Hook_glOrtho, reinterpret_cast<void**>(&oglOrtho));
+	EnableHook(glOrtho);
 
 	CreateHook(glVertex3fv, Hook_glVertex3fv, reinterpret_cast<void**>(&oglVertex3fv));
 	EnableHook(glVertex3fv);
@@ -89,6 +89,7 @@ PGXP::PGXP()
 
 PGXP::~PGXP()
 {
+	DisableHook(glOrtho);
 	DisableHook(glVertex3fv);
 }
 
@@ -106,11 +107,11 @@ void PGXP::SetAddress()
 
 void PGXP::ResetVertex()
 {
-	PLUGINLOG("After: %f, %f, %f, %f", vertex[0]->z, vertex[0]->z, vertex[0]->z, vertex[0]->z);
 	for (unsigned int i = 0; i < 4; i++)	//iCB: remove stale vertex data
 	{
 		vertex[i]->x = vertex[i]->y = 0.f;
-		vertex[i]->z = 1.f;
+		vertex[i]->z = 0.95f;
+		fxy[i].z = 1.f;
 	}
 }
 
@@ -278,34 +279,43 @@ void APIENTRY PGXP::Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom,
 	//m[15] = 1;
 
 	// iCB: Substitute z value for w
-	if ((right - left) != 0)
-	{
-		m[0] = 2 / (right - left);
-		m[8] = -((right + left) / (right - left));
-	}
-	if ((top - bottom) != 0)
-	{
-		m[5] = 2 / (top - bottom);
-		m[9] = -((top + bottom) / (top - bottom));
-	}
-	m[10] = -2 / (zFar - zNear);
-	m[14] = -((zFar + zNear) / (zFar - zNear));
-	m[11] = 1;
+	//if ((right - left) != 0)
+	//{
+	//	m[0] = 2 / (right - left);
+	//	m[8] = -((right + left) / (right - left));
+	//}
+	//if ((top - bottom) != 0)
+	//{
+	//	m[5] = 2 / (top - bottom);
+	//	m[9] = -((top + bottom) / (top - bottom));
+	//}
+	//m[10] = -2 / (zFar - zNear);
+	//m[14] = -((zFar + zNear) / (zFar - zNear));
+	//m[11] = 1;
 
-	glLoadMatrixf(m);
-	//oglOrtho(left, right, bottom, top, zNear, zFar);
+//	glLoadMatrixf(m);
+
+	// iCB: Hack, extend near and far planes to accomodate z mask values after multiplication by w
+	oglOrtho(left, right, bottom, top, zNear*100, zFar*100);
 }
 
 void (APIENTRY* PGXP::oglVertex3fv)(const GLfloat * v);
 void APIENTRY PGXP::Hook_glVertex3fv(const GLfloat * v)
 {
 	// If there are PGXP vertices expected
-	if (s_PGXP->vertexIdx < s_PGXP->numVertices)
+	if (1)// (s_PGXP->vertexIdx < s_PGXP->numVertices)
 	{
 		// copy vertex and add w component
 		GLfloat temp[4];
 		memcpy(temp, v, sizeof(GLfloat) * 3);
-		temp[3] = s_PGXP->fxy[s_PGXP->vertexIdx].z;
+
+		// Get vertex index
+		unsigned int vertIdx = ((size_t)v - (size_t)s_PGXP->vertex[0]) / ((size_t)s_PGXP->vertex[1] - (size_t)s_PGXP->vertex[0]);
+
+		if (vertIdx >= 4)
+			temp[3] = 1;
+		else
+			temp[3] = s_PGXP->fxy[vertIdx].z;
 
 		// pre-multiply each element by w (to negate perspective divide)
 		for(u32 i=0; i < 3; i++)
