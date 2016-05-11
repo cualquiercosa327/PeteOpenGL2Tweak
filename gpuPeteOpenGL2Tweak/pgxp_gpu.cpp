@@ -303,14 +303,14 @@ void (APIENTRY* PGXP::oglVertex3fv)(const GLfloat * v);
 void APIENTRY PGXP::Hook_glVertex3fv(const GLfloat * v)
 {
 	// If there are PGXP vertices expected
-	if (1)// (s_PGXP->vertexIdx < s_PGXP->numVertices)
+	if (s_PGXP->vertexIdx < s_PGXP->numVertices)
 	{
 		// copy vertex and add w component
 		GLfloat temp[4];
 		memcpy(temp, v, sizeof(GLfloat) * 3);
 
 		// Get vertex index
-		unsigned int vertIdx = ((size_t)v - (size_t)s_PGXP->vertex[0]) / ((size_t)s_PGXP->vertex[1] - (size_t)s_PGXP->vertex[0]);
+		size_t vertIdx = ((size_t)v - (size_t)s_PGXP->vertex[0]) / ((size_t)s_PGXP->vertex[1] - (size_t)s_PGXP->vertex[0]);
 
 		if (vertIdx >= 4)
 			temp[3] = 1;
