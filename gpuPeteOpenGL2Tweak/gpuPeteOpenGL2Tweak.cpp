@@ -121,3 +121,9 @@ void Context::SetPGXPMem(unsigned int addr, unsigned char* pVRAM)
 		return pgxp->SetMemoryPtr(addr, pVRAM);
 }
 
+void Context::CachePGXPVertex(short sx, short sy, const unsigned char* _pVertex)
+{
+	if (pgxp)
+		return pgxp->CacheVertex(sx, sy, (const PGXP_vertex*)_pVertex);
+}
+

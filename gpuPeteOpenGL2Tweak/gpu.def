@@ -33,5 +33,6 @@ EXPORTS
 
 	; PGXP
 	GPUpgxpMemory=EXPORT_GPUpgxpMemory				@128
+	GPUpgxpCacheVertex=EXPORT_GPUpgxpCacheVertex	@129
 
 

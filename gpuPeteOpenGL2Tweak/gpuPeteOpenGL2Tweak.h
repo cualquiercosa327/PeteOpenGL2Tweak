@@ -80,6 +80,7 @@ public:
 	void OnGPUsetframelimit(u32 option);
 
 	void SetPGXPMem(unsigned int addr, unsigned char* pVRAM);
+	void CachePGXPVertex(short sx, short sy, const unsigned char* _pVertex);
 
 private:
 	std::shared_ptr<Config> config;

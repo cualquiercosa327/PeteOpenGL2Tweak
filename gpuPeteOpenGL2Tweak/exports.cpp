@@ -219,3 +219,9 @@ void CALLBACK EXPORT_GPUpgxpMemory(unsigned int addr, unsigned char* pVRAM)
 	EXPORT_LOG(__FUNCTION__);
 	return context.SetPGXPMem(addr, pVRAM);
 }
+
+void CALLBACK EXPORT_GPUpgxpCacheVertex(short sx, short sy, const unsigned char* _pVertex)
+{
+	EXPORT_LOG(__FUNCTION__);
+	return context.CachePGXPVertex(sx, sy, _pVertex);
+}

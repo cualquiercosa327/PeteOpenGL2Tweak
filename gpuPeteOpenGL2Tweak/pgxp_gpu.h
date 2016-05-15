@@ -64,6 +64,21 @@ private:
 	int* gpuDataP;
 	u32 currentAddr = 0;
 
+	/// CACHING
+	const unsigned int mode_init = 0;
+	const unsigned int mode_write = 1;
+	const unsigned int mode_read = 2;
+
+	PGXP_vertex vertexCache[0x800 * 2][0x800 * 2];
+
+	unsigned int baseID = 0;
+	unsigned int lastID = 0;
+	unsigned int cacheMode = 0;
+
+	unsigned int	IsSessionID(unsigned int vertID);
+	PGXP_vertex*	GetCachedVertex(short sx, short sy);
+	// /CACHING
+
 	void fix_offsets(s32 count);
 
 	static offset_fn ooffset3;
@@ -112,5 +127,6 @@ public:
 	void SetMemoryPtr(unsigned int addr, unsigned char* pVRAM);
 	void SetAddress();
 
+	void CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex);
 };
 

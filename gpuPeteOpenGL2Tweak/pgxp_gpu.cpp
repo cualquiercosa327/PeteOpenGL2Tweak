@@ -126,12 +126,14 @@ void PGXP::GetVertices(u32* addr)
 	unsigned int	stride = primStrideTable[primIdx];		// stride between vertices
 	unsigned int	count = primCountTable[primIdx];		// number of vertices
 	PGXP_vertex*	primStart = NULL;						// pointer to first vertex
+	short*			pPrimData = (short*)addr;				// primitive data for cache lookups
 
 	if (PGXP_Mem == NULL)
 		return;
 
 	// Offset to start of primitive
 	primStart = &PGXP_Mem[currentAddr + 1];
+	pPrimData += 2;
 
 	for (unsigned i = 0; i < count; ++i)
 	{
@@ -140,7 +142,17 @@ void PGXP::GetVertices(u32* addr)
 			fxy[i] = primStart[stride * i];
 		}
 		else
+		{
 			fxy[i].valid = 0;
+
+			// Look in cache for valid vertex
+			PGXP_vertex* pCacheVert = GetCachedVertex(pPrimData[stride * i * 2], pPrimData[(stride * i * 2) + 1]);
+			if (pCacheVert)
+			{
+				if (IsSessionID(pCacheVert->count) && (pCacheVert->valid == 1))
+					fxy[i] = *pCacheVert;
+			}
+		}
 	}
 }
 
@@ -174,6 +186,100 @@ void PGXP::fix_offsets(s32 count)
 
 		fxy[i].z = w; // store w for later restoration in glVertex3fv
 	}
+}
+
+
+/////////////////////////////////
+//// Blade_Arma's Vertex Cache (CatBlade?)
+/////////////////////////////////
+
+unsigned int PGXP::IsSessionID(unsigned int vertID)
+{
+	// No wrapping
+	if (lastID >= baseID)
+		return (vertID >= baseID);
+
+	// If vertID is >= baseID it is pre-wrap and in session
+	if (vertID >= baseID)
+		return 1;
+
+	// vertID is < baseID, If it is <= lastID it is post-wrap and in session
+	if (vertID <= lastID)
+		return 1;
+
+	return 0;
+}
+
+void PGXP::CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex)
+{
+	const PGXP_vertex*	pNewVertex = _pVertex;
+	PGXP_vertex*		pOldVertex = NULL;
+
+	if (!pNewVertex)
+		return;
+
+	//if (bGteAccuracy)
+	{
+		if (cacheMode != mode_write)
+		{
+			// Initialise cache on first use
+			if (cacheMode == mode_init)
+				memset(vertexCache, 0x00, sizeof(vertexCache));
+
+			// First vertex of write session (frame?)
+			cacheMode = mode_write;
+			baseID = pNewVertex->count;
+		}
+
+		lastID = pNewVertex->count;
+
+		if (sx >= -0x800 && sx <= 0x7ff &&
+			sy >= -0x800 && sy <= 0x7ff)
+		{
+			pOldVertex = &vertexCache[sy + 0x800][sx + 0x800];
+
+			// To avoid ambiguity there can only be one valid entry per-session
+			if (IsSessionID(pOldVertex->count) && (pOldVertex->value == pNewVertex->value))
+			{
+				// check to ensure this isn't identical
+				if ((fabsf(pOldVertex->x - pNewVertex->x) > 0.1f) ||
+					(fabsf(pOldVertex->y - pNewVertex->y) > 0.1f) ||
+					(fabsf(pOldVertex->z - pNewVertex->z) > 0.1f))
+				{
+					pOldVertex->valid = 5;
+					return;
+				}
+			}
+
+			// Write vertex into cache
+			*pOldVertex = *pNewVertex;
+		}
+	}
+}
+
+PGXP_vertex* PGXP::GetCachedVertex(short sx, short sy)
+{
+	//if (bGteAccuracy)
+	{
+		if (cacheMode != mode_read)
+		{
+			// Initialise cache on first use
+			if (cacheMode == mode_init)
+				memset(vertexCache, 0x00, sizeof(vertexCache));
+
+			// First vertex of read session (frame?)
+			cacheMode = mode_read;
+		}
+
+		if (sx >= -0x800 && sx <= 0x7ff &&
+			sy >= -0x800 && sy <= 0x7ff)
+		{
+			// Return pointer to cache entry
+			return &vertexCache[sy + 0x800][sx + 0x800];
+		}
+	}
+
+	return NULL;
 }
 
 PGXP::offset_fn PGXP::ooffset3;
