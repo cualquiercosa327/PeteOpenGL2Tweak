@@ -95,8 +95,7 @@ PGXP::~PGXP()
 
 void PGXP::SetMemoryPtr(unsigned int addr, unsigned char* pVRAM)
 {
-	if (pVRAM)
-		PGXP_Mem = (PGXP_vertex*)(pVRAM);
+	PGXP_Mem = (PGXP_vertex*)(pVRAM);
 	currentAddr = addr;
 }
 
@@ -126,18 +125,17 @@ void PGXP::GetVertices(u32* addr)
 	unsigned int	stride = primStrideTable[primIdx];		// stride between vertices
 	unsigned int	count = primCountTable[primIdx];		// number of vertices
 	PGXP_vertex*	primStart = NULL;						// pointer to first vertex
-	short*			pPrimData = (short*)addr;				// primitive data for cache lookups
+	short*			pPrimData = ((short*)addr) + 2;			// primitive data for cache lookups
 
-	if (PGXP_Mem == NULL)
-		return;
-
-	// Offset to start of primitive
-	primStart = &PGXP_Mem[currentAddr + 1];
-	pPrimData += 2;
+	if (PGXP_Mem != NULL)
+	{
+		// Offset to start of primitive
+		primStart = &PGXP_Mem[currentAddr + 1];
+	}
 
 	for (unsigned i = 0; i < count; ++i)
 	{
-		if (primStart[stride * i].valid)
+		if (primStart && primStart[stride * i].valid)
 		{
 			fxy[i] = primStart[stride * i];
 		}
@@ -216,7 +214,10 @@ void PGXP::CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex)
 	PGXP_vertex*		pOldVertex = NULL;
 
 	if (!pNewVertex)
+	{
+		cacheMode = mode_fail;
 		return;
+	}
 
 	//if (bGteAccuracy)
 	{
@@ -263,6 +264,9 @@ PGXP_vertex* PGXP::GetCachedVertex(short sx, short sy)
 	{
 		if (cacheMode != mode_read)
 		{
+			if (cacheMode == mode_fail)
+				return NULL;
+
 			// Initialise cache on first use
 			if (cacheMode == mode_init)
 				memset(vertexCache, 0x00, sizeof(vertexCache));

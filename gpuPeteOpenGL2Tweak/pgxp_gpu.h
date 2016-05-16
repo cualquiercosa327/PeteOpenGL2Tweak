@@ -65,9 +65,10 @@ private:
 	u32 currentAddr = 0;
 
 	/// CACHING
-	const unsigned int mode_init = 0;
-	const unsigned int mode_write = 1;
-	const unsigned int mode_read = 2;
+	const unsigned int mode_init	= 0;
+	const unsigned int mode_write	= 1;
+	const unsigned int mode_read	= 2;
+	const unsigned int mode_fail	= 3;
 
 	PGXP_vertex vertexCache[0x800 * 2][0x800 * 2];
 
