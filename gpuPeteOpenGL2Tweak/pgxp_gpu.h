@@ -36,6 +36,7 @@ typedef struct
 	unsigned int	valid;
 	unsigned int	count;
 	unsigned int	value;
+	unsigned int	flags;
 } PGXP_vertex;
 
 static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,

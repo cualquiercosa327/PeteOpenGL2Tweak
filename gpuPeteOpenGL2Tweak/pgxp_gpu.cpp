@@ -135,7 +135,7 @@ void PGXP::GetVertices(u32* addr)
 
 	for (unsigned i = 0; i < count; ++i)
 	{
-		if (primStart && primStart[stride * i].valid)
+		if (primStart && primStart[stride * i].valid && (primStart[stride * i].value == *(u32*)(&pPrimData[stride * i * 2])))
 		{
 			fxy[i] = primStart[stride * i];
 		}
