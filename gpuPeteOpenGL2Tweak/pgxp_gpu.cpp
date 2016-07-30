@@ -135,19 +135,19 @@ void PGXP::GetVertices(u32* addr)
 
 	for (unsigned i = 0; i < count; ++i)
 	{
-		if (primStart && primStart[stride * i].valid && (primStart[stride * i].value == *(u32*)(&pPrimData[stride * i * 2])))
+		if (primStart && ((primStart[stride * i].flags & VALID_01) == VALID_01) && (primStart[stride * i].value == *(u32*)(&pPrimData[stride * i * 2])))
 		{
 			fxy[i] = primStart[stride * i];
 		}
 		else
 		{
-			fxy[i].valid = 0;
+			fxy[i].flags = NONE;
 
 			// Look in cache for valid vertex
 			PGXP_vertex* pCacheVert = GetCachedVertex(pPrimData[stride * i * 2], pPrimData[(stride * i * 2) + 1]);
 			if (pCacheVert)
 			{
-				if (IsSessionID(pCacheVert->count) && (pCacheVert->valid == 1))
+				if (IsSessionID(pCacheVert->count) && (pCacheVert->mFlags == 1))
 					fxy[i] = *pCacheVert;
 			}
 		}
@@ -165,7 +165,7 @@ void PGXP::fix_offsets(s32 count)
 	// Find any invalid vertices
 	for (unsigned i = 0; i < count; ++i)
 	{
-		if (!fxy[i].valid)
+		if ((fxy[i].flags & VALID_012) != VALID_012)
 			invalidVert++;
 	}
 
@@ -176,7 +176,7 @@ void PGXP::fix_offsets(s32 count)
 		if (invalidVert > 0)
 			w = 1;
 
-		if (fxy[i].valid /*&& std::fabs(fxy[i].x - *lx[i]) < 1.0f && std::fabs(fxy[i].y - *ly[i]) < 1.0f*/)
+		if (((fxy[i].flags & VALID_01) == VALID_01) /*&& std::fabs(fxy[i].x - *lx[i]) < 1.0f && std::fabs(fxy[i].y - *ly[i]) < 1.0f*/)
 		{
 			vertex[i]->x = (fxy[i].x + *PSXDisplay_CumulOffset_x);
 			vertex[i]->y = (fxy[i].y + *PSXDisplay_CumulOffset_y);
@@ -247,13 +247,14 @@ void PGXP::CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex)
 					(fabsf(pOldVertex->y - pNewVertex->y) > 0.1f) ||
 					(fabsf(pOldVertex->z - pNewVertex->z) > 0.1f))
 				{
-					pOldVertex->valid = 5;
+					pOldVertex->mFlags = 5;
 					return;
 				}
 			}
 
 			// Write vertex into cache
 			*pOldVertex = *pNewVertex;
+			pOldVertex->mFlags = 1;
 		}
 	}
 }

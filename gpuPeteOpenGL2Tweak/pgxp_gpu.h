@@ -33,11 +33,27 @@ typedef struct
 	float	x;
 	float	y;
 	float	z;
-	unsigned int	valid;
+	union
+	{
+		unsigned int	flags;
+		unsigned char	compFlags[4];
+	};
 	unsigned int	count;
 	unsigned int	value;
-	unsigned int	flags;
+	unsigned int	mFlags;
 } PGXP_vertex;
+
+#define NONE	 0
+#define ALL		 0xFFFFFFFF
+#define VALID	 1
+#define VALID_0  (VALID << 0)
+#define VALID_1  (VALID << 8)
+#define VALID_2  (VALID << 16)
+#define VALID_3  (VALID << 24)
+#define VALID_01  (VALID_0 | VALID_1)
+#define VALID_012  (VALID_0 | VALID_1 | VALID_2)
+#define VALID_ALL  (VALID_0 | VALID_1 | VALID_2 | VALID_3)
+#define INV_VALID_ALL  (ALL ^ VALID_ALL)
 
 static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF,
 0x7FFFFFFF, 0x1FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF };
