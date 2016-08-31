@@ -110,7 +110,7 @@ void (CALLBACK* Context::oGPUwriteDataMem)(u32* pMem, s32 iSize);
 void CALLBACK Context::hookGPUwriteDataMem(u32* pMem, s32 iSize)
 {
 	if (context.pgxp)
-		context.pgxp->SetAddress();
+		context.pgxp->SetAddress(pMem, iSize);
 
 	return oGPUwriteDataMem(pMem, iSize);
 }

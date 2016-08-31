@@ -7,6 +7,77 @@
 
 #include <ppl.h>
 
+
+const unsigned char primSizeTable[256] =
+{
+    // 00
+    0,0,3,0,0,0,0,0,
+    // 08
+    0,0,0,0,0,0,0,0,
+    // 10
+    0,0,0,0,0,0,0,0,
+    // 18
+    0,0,0,0,0,0,0,0,
+    // 20
+    4,4,4,4,7,7,7,7,
+    // 28
+    5,5,5,5,9,9,9,9,
+    // 30
+    6,6,6,6,9,9,9,9,
+    // 38
+    8,8,8,8,12,12,12,12,
+    // 40
+    3,3,3,3,0,0,0,0,
+    // 48
+//    5,5,5,5,6,6,6,6,      //FLINE
+    254,254,254,254,254,254,254,254,
+    // 50
+    4,4,4,4,0,0,0,0,
+    // 58
+//    7,7,7,7,9,9,9,9,    //    LINEG3    LINEG4
+    255,255,255,255,255,255,255,255,
+    // 60
+    3,3,3,3,4,4,4,4,    //    TILE    SPRT
+    // 68
+    2,2,2,2,3,3,3,3,    //    TILE1
+    // 70
+    2,2,2,2,3,3,3,3,
+    // 78
+    2,2,2,2,3,3,3,3,
+    // 80
+    4,0,0,0,0,0,0,0,
+    // 88
+    0,0,0,0,0,0,0,0,
+    // 90
+    0,0,0,0,0,0,0,0,
+    // 98
+    0,0,0,0,0,0,0,0,
+    // a0
+    3,0,0,0,0,0,0,0,
+    // a8
+    0,0,0,0,0,0,0,0,
+    // b0
+    0,0,0,0,0,0,0,0,
+    // b8
+    0,0,0,0,0,0,0,0,
+    // c0
+    3,0,0,0,0,0,0,0,
+    // c8
+    0,0,0,0,0,0,0,0,
+    // d0
+    0,0,0,0,0,0,0,0,
+    // d8
+    0,0,0,0,0,0,0,0,
+    // e0
+    0,1,1,1,1,1,1,0,
+    // e8
+    0,0,0,0,0,0,0,0,
+    // f0
+    0,0,0,0,0,0,0,0,
+    // f8
+    0,0,0,0,0,0,0,0
+};
+
 static PGXP* s_PGXP;
 
 PGXP::PGXP()
@@ -99,9 +170,11 @@ void PGXP::SetMemoryPtr(unsigned int addr, unsigned char* pVRAM)
 	currentAddr = addr;
 }
 
-void PGXP::SetAddress()
+void PGXP::SetAddress(uint32_t *baseAddrL, int size)
 {
 	currentAddr = (*lUsedAddr + 4) >> 2;
+	pDMABlock = baseAddrL;
+	blockSize = size;
 }
 
 void PGXP::ResetVertex()
@@ -127,10 +200,31 @@ void PGXP::GetVertices(u32* addr)
 	PGXP_vertex*	primStart = NULL;						// pointer to first vertex
 	short*			pPrimData = ((short*)addr) + 2;			// primitive data for cache lookups
 
+	// calculate offset to actual data
+	int offset = 0;
+	while ((pDMABlock[offset] != *addr) && (offset < blockSize))
+	{
+		unsigned char command = (unsigned char)((pDMABlock[offset] >> 24) & 0xff);
+		unsigned int primSize = primSizeTable[command];
+
+		if (primSize == 0)
+		{
+			offset++;
+			continue;
+		}
+		else if (primSize > 128)
+		{
+			while (((pDMABlock[offset] & 0xF000F000) != 0x50005000) && (offset < blockSize))
+				++offset;
+		}
+		else
+			offset += primSize;
+	}
+
 	if (PGXP_Mem != NULL)
 	{
 		// Offset to start of primitive
-		primStart = &PGXP_Mem[currentAddr + 1];
+		primStart = &PGXP_Mem[currentAddr + offset + 1];
 	}
 
 	for (unsigned i = 0; i < count; ++i)
@@ -178,8 +272,16 @@ void PGXP::fix_offsets(s32 count)
 
 		if (((fxy[i].flags & VALID_01) == VALID_01) /*&& std::fabs(fxy[i].x - *lx[i]) < 1.0f && std::fabs(fxy[i].y - *ly[i]) < 1.0f*/)
 		{
-			vertex[i]->x = (fxy[i].x + *PSXDisplay_CumulOffset_x);
-			vertex[i]->y = (fxy[i].y + *PSXDisplay_CumulOffset_y);
+			// clear upper 4 bits
+			float x = fxy[i].x *(1 << 16);
+			float y = fxy[i].y *(1 << 16);
+			x = (float)(((int)x << 4) >> 4);
+			y = (float)(((int)y << 4) >> 4);
+			x /= (1 << 16);
+			y /= (1 << 16);
+
+			vertex[i]->x = (x + *PSXDisplay_CumulOffset_x);
+			vertex[i]->y = (y + *PSXDisplay_CumulOffset_y);
 		}
 
 		fxy[i].z = w; // store w for later restoration in glVertex3fv

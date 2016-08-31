@@ -80,6 +80,8 @@ private:
 	u32* lUsedAddr;
 	int* gpuDataP;
 	u32 currentAddr = 0;
+	u32* pDMABlock = NULL;
+	int	blockSize = 0;
 
 	/// CACHING
 	const unsigned int mode_init	= 0;
@@ -143,7 +145,7 @@ public:
 	~PGXP();
 
 	void SetMemoryPtr(unsigned int addr, unsigned char* pVRAM);
-	void SetAddress();
+	void SetAddress(uint32_t *baseAddrL, int size);
 
 	void CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex);
 };
