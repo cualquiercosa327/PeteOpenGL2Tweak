@@ -149,6 +149,10 @@ PGXP::PGXP()
 	CreateHook(primPolyGT4, PGXP::primPolyGT4, &oprimPolyGT4);
 	EnableHook(primPolyGT4);
 
+	rectTexAlign_fn rectTexAlign = (rectTexAlign_fn)GPUPlugin::Get().GetPluginMem(0x001A900);
+	CreateHook(rectTexAlign, PGXP::rectTexAlign, &orectTexAlign);
+	EnableHook(rectTexAlign);
+
 	CreateHook(glOrtho, Hook_glOrtho, reinterpret_cast<void**>(&oglOrtho));
 	EnableHook(glOrtho);
 
@@ -467,6 +471,15 @@ void __cdecl PGXP::primPolyGT4(unsigned char *baseAddr)
 	s_PGXP->GetVertices((u32*)baseAddr);
 	oprimPolyGT4(baseAddr);
 	s_PGXP->ResetVertex();
+}
+
+PGXP::rectTexAlign_fn PGXP::orectTexAlign;
+void __cdecl PGXP::rectTexAlign(void)
+{
+	if((s_PGXP->fxy[0].z != s_PGXP->fxy[1].z) || (s_PGXP->fxy[1].z != s_PGXP->fxy[2].z) || (s_PGXP->fxy[2].z != s_PGXP->fxy[3].z))
+		return;
+
+	orectTexAlign();
 }
 
 void (APIENTRY* PGXP::oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);

@@ -61,6 +61,7 @@ static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF
 class PGXP
 {
 private:
+	typedef void(__cdecl* rectTexAlign_fn)(void);
 	typedef BOOL(__cdecl* offset_fn)(void);
 	typedef void(__cdecl* primPoly_fn)(unsigned char *baseAddr);
 	typedef void(__cdecl* ortho_fn)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble nearVal, GLdouble farVal);
@@ -130,6 +131,9 @@ private:
 
 	static primPoly_fn oprimPolyGT4;
 	static void __cdecl primPolyGT4(unsigned char *baseAddr);
+
+	static rectTexAlign_fn orectTexAlign;
+	static void __cdecl rectTexAlign(void);
 
 	static void(APIENTRY* oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 	static void APIENTRY Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
