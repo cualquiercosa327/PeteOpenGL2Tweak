@@ -47,6 +47,8 @@ s32 CALLBACK Context::hookGPUopen(HWND hwndGPU)
 	if (!context.pgxp)
 		context.pgxp.reset(new PGXP);
 
+	context.pgxp->SetLineHackMode(context.config->GetLineHackMode());
+
 	s32 ret = oGPUopen(hwndGPU);
 
 	static std::once_flag glewInitFlag;
@@ -90,10 +92,10 @@ s32 Context::OnGPUclose()
 
 	// iCB: Destroy components so that they will release OpenGL hooks
 	if (textureScaler)
-		textureScaler.reset(NULL);
+		textureScaler.reset(nullptr);
 
 	if (pgxp)
-		pgxp.reset(NULL);
+		pgxp.reset(nullptr);
 
 	return ret;
 }

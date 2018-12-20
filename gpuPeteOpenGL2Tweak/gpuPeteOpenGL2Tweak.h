@@ -15,7 +15,7 @@ static const char *pecfilename = "\\gpupec.dll";
 #define VERSION_MAJOR 2
 #define VERSION_MINOR 4
 
-#define CONFIG_VERSION 240
+#define CONFIG_VERSION 241
 
 class Config : NonCopyable
 {

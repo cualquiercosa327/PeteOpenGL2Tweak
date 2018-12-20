@@ -43,6 +43,19 @@ typedef struct
 	unsigned int	mFlags;
 } PGXP_vertex;
 
+typedef struct
+{
+	short x, y;
+	unsigned char u, v;
+	unsigned short padding;
+}sourceVert;
+
+typedef struct
+{
+	unsigned int padding;
+	sourceVert verts[3];
+}flatTriPrim;
+
 #define NONE	 0
 #define ALL		 0xFFFFFFFF
 #define VALID	 1
@@ -61,6 +74,7 @@ static const uint32_t addr_mask[8] = { 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFF
 class PGXP
 {
 private:
+	typedef BOOL(__cdecl* doLineCheck_fn)(u32* gpuData);
 	typedef void(__cdecl* rectTexAlign_fn)(void);
 	typedef BOOL(__cdecl* offset_fn)(void);
 	typedef void(__cdecl* primPoly_fn)(unsigned char *baseAddr);
@@ -100,6 +114,10 @@ private:
 	PGXP_vertex*	GetCachedVertex(short sx, short sy);
 	// /CACHING
 
+	// LINE HACK
+	u32 lineHackMode;
+	// /LINE HACK
+
 	void fix_offsets(s32 count);
 
 	static offset_fn ooffset3;
@@ -135,6 +153,10 @@ private:
 	static rectTexAlign_fn orectTexAlign;
 	static void __cdecl rectTexAlign(void);
 
+	static doLineCheck_fn odoLineCheck;
+	static BOOL __cdecl doLineCheck(u32* gpuData);
+
+
 	static void(APIENTRY* oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 	static void APIENTRY Hook_glOrtho(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
 
@@ -144,12 +166,17 @@ private:
 	void GetVertices(u32* baseAddr);
 	void ResetVertex();
 
+	bool Hack_FindLine(flatTriPrim *srcPrim, flatTriPrim* outPrim, OGLVertex* outVertices);
+	bool Hack_ForceLine(flatTriPrim *srcPrim, flatTriPrim* outPrim, OGLVertex* outVertices);
+
 public:
 	PGXP();
 	~PGXP();
 
 	void SetMemoryPtr(unsigned int addr, unsigned char* pVRAM);
 	void SetAddress(uint32_t *baseAddrL, int size);
+
+	void SetLineHackMode(u32 lineHack);
 
 	void CacheVertex(short sx, short sy, const PGXP_vertex* _pVertex);
 };

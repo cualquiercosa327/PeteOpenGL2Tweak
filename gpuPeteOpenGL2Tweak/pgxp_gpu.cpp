@@ -105,6 +105,8 @@ PGXP::PGXP()
 	PSXDisplay_CumulOffset_x = (s16*)GPUPlugin::Get().GetPluginMem(0x00051FFC);
 	PSXDisplay_CumulOffset_y = (s16*)GPUPlugin::Get().GetPluginMem(0x00051FFE);
 
+	lineHackMode = 1;
+
 	//dword_10052130 = dmaMem;
 	PGXP_Mem	= NULL;
 	lUsedAddr	= (u32*)GPUPlugin::Get().GetPluginMem(0x00052130);
@@ -149,9 +151,13 @@ PGXP::PGXP()
 	CreateHook(primPolyGT4, PGXP::primPolyGT4, &oprimPolyGT4);
 	EnableHook(primPolyGT4);
 
-	rectTexAlign_fn rectTexAlign = (rectTexAlign_fn)GPUPlugin::Get().GetPluginMem(0x001A900);
+	rectTexAlign_fn rectTexAlign = (rectTexAlign_fn)GPUPlugin::Get().GetPluginMem(0x0001A900);
 	CreateHook(rectTexAlign, PGXP::rectTexAlign, &orectTexAlign);
 	EnableHook(rectTexAlign);
+
+	doLineCheck_fn doLineCheck = (doLineCheck_fn)GPUPlugin::Get().GetPluginMem(0x0001A1C0);
+	CreateHook(doLineCheck, PGXP::doLineCheck, &odoLineCheck);
+	EnableHook(doLineCheck);
 
 	CreateHook(glOrtho, Hook_glOrtho, reinterpret_cast<void**>(&oglOrtho));
 	EnableHook(glOrtho);
@@ -179,6 +185,11 @@ void PGXP::SetAddress(uint32_t *baseAddrL, int size)
 	currentAddr = (*lUsedAddr + 4) >> 2;
 	pDMABlock = baseAddrL;
 	blockSize = size;
+}
+
+void PGXP::SetLineHackMode(u32 lineHack)
+{
+	lineHackMode = lineHack;
 }
 
 void PGXP::ResetVertex()
@@ -393,6 +404,206 @@ PGXP_vertex* PGXP::GetCachedVertex(short sx, short sy)
 	return NULL;
 }
 
+
+
+// 0 = disabled
+// 1 = enabled (default mode) 
+// 2 = enabled (aggressive mode)
+
+// Hack to deal with PS1 games rendering axis aligned lines using 1 pixel wide triangles with UVs that describe a line
+// Suitable for games like Soul Blade, Doom and Hexen
+bool PGXP::Hack_FindLine(flatTriPrim* srcPrim, flatTriPrim* outPrim, OGLVertex* outVertices)
+{
+	int pxWidth = 1;	// width of a single pixel
+	unsigned short cornerIdx, shortIdx, longIdx;
+
+	sourceVert* srcVert = &srcPrim->verts[0];
+
+	memcpy(outPrim, srcPrim, sizeof(flatTriPrim));
+
+	// reject 3D elements
+	if ((fxy[0].z != fxy[1].z) ||
+		(fxy[0].z != fxy[2].z))
+		return false;
+
+	// find short side of triangle / end of line with 2 vertices (guess which vertex is the right angle)
+	if ((srcVert[0].u == srcVert[1].u) && (srcVert[0].v == srcVert[1].v))
+		cornerIdx = 0;
+	else if ((srcVert[1].u == srcVert[2].u) && (srcVert[1].v == srcVert[2].v))
+		cornerIdx = 1;
+	else if ((srcVert[2].u == srcVert[0].u) && (srcVert[2].v == srcVert[0].v))
+		cornerIdx = 2;
+	else
+		return false;
+
+	// assign other indices to remaining vertices
+	shortIdx = (cornerIdx + 1) % 3;
+	longIdx = (shortIdx + 1) % 3;
+
+	// determine line orientation and check width
+	if ((srcVert[cornerIdx].x == srcVert[shortIdx].x) && (abs(srcVert[cornerIdx].y - srcVert[shortIdx].y) == pxWidth))
+	{
+		// line is horizontal
+		// determine which is truly the corner by checking against the long side, while making sure it is axis aligned
+		if (srcVert[shortIdx].y == srcVert[longIdx].y)
+		{
+			unsigned short tempIdx = shortIdx;
+			shortIdx = cornerIdx;
+			cornerIdx = tempIdx;
+		}
+		else if (srcVert[cornerIdx].y != srcVert[longIdx].y)
+			return false;
+
+		// flip corner index to other side of quad
+		outVertices[cornerIdx] = *vertex[longIdx];
+		outVertices[cornerIdx].y = vertex[shortIdx]->y;
+
+		outPrim->verts[cornerIdx].x = srcVert[longIdx].x;
+		outPrim->verts[cornerIdx].u = srcVert[longIdx].u;
+		outPrim->verts[cornerIdx].v = srcVert[longIdx].v;
+		outPrim->verts[cornerIdx].y = srcVert[shortIdx].y;
+	}
+	else if ((srcVert[cornerIdx].y == srcVert[shortIdx].y) && (abs(srcVert[cornerIdx].x - srcVert[shortIdx].x) == pxWidth))
+	{
+		// line is vertical
+		// determine which is truly the corner by checking against the long side, while making sure it is axis aligned
+		if (srcVert[shortIdx].x == srcVert[longIdx].x)
+		{
+			unsigned short tempIdx = shortIdx;
+			shortIdx = cornerIdx;
+			cornerIdx = tempIdx;
+		}
+		else if (srcVert[cornerIdx].x != srcVert[longIdx].x)
+			return false;
+
+		// flip corner index to other side of quad
+		outVertices[cornerIdx] = *vertex[longIdx];
+		outVertices[cornerIdx].x = vertex[shortIdx]->x;
+
+		outPrim->verts[cornerIdx].y = srcVert[longIdx].y;
+		outPrim->verts[cornerIdx].u = srcVert[longIdx].u;
+		outPrim->verts[cornerIdx].v = srcVert[longIdx].v;
+		outPrim->verts[cornerIdx].x = srcVert[shortIdx].x;
+	}
+	else
+		return false;
+
+	// write out second tri
+	outVertices[shortIdx] = *vertex[shortIdx];
+	outVertices[longIdx] = *vertex[longIdx];
+
+	
+	outPrim->verts[longIdx].x = srcVert[longIdx].x;
+	outPrim->verts[longIdx].y = srcVert[longIdx].y;
+	outPrim->verts[longIdx].u = srcVert[longIdx].u;
+	outPrim->verts[longIdx].v = srcVert[longIdx].v;
+
+	outPrim->verts[shortIdx].x = srcVert[shortIdx].x;
+	outPrim->verts[shortIdx].y = srcVert[shortIdx].y;
+	outPrim->verts[shortIdx].u = srcVert[shortIdx].u;
+	outPrim->verts[shortIdx].v = srcVert[shortIdx].v;
+
+	return true;
+}
+
+
+// Hack to deal with PS1 games rendering axis aligned lines using 1 pixel wide triangles and force UVs to describe a line
+// Required for games like Dark Forces and Duke Nukem
+bool PGXP::Hack_ForceLine(flatTriPrim* srcPrim, flatTriPrim* outPrim, OGLVertex* outVertices)
+{
+	int pxWidth = 1;	// width of a single pixel
+	unsigned short cornerIdx, shortIdx, longIdx;
+
+	sourceVert* srcVert = &srcPrim->verts[0];
+
+	memcpy(outPrim, srcPrim, sizeof(flatTriPrim));
+
+	// reject 3D elements
+	if ((fxy[0].z != fxy[1].z) ||
+		(fxy[0].z != fxy[2].z))
+		return false;
+
+	// find vertical AB
+	unsigned short A, B, C;
+	if (srcVert[0].x == srcVert[1].x)
+		A = 0;
+	else if (srcVert[1].x == srcVert[2].x)
+		A = 1;
+	else if (srcVert[2].x == srcVert[0].x)
+		A = 2;
+	else
+		return false;
+
+	// assign other indices to remaining vertices
+	B = (A + 1) % 3;
+	C = (B + 1) % 3;
+
+	// find horizontal AC or BC
+	if (srcVert[A].y == srcVert[C].y)
+		cornerIdx = A;
+	else if (srcVert[B].y == srcVert[C].y)
+		cornerIdx = B;
+	else
+		return false;
+
+	// determine lengths of sides
+	if (abs(srcVert[A].y - srcVert[B].y) == pxWidth)
+	{
+		// is Horizontal
+		shortIdx = (cornerIdx == A) ? B : A;
+		longIdx = C;
+
+		// flip corner index to other side of quad
+		outVertices[cornerIdx] = *vertex[longIdx];
+		outVertices[cornerIdx].y = vertex[shortIdx]->y;
+
+		outPrim->verts[cornerIdx].x = srcVert[longIdx].x;
+		outPrim->verts[cornerIdx].u = srcVert[longIdx].u;
+		outPrim->verts[cornerIdx].v = srcVert[longIdx].v;
+		outPrim->verts[cornerIdx].y = srcVert[shortIdx].y;
+	}
+	else if (abs(srcVert[A].x - srcVert[C].x) == pxWidth)
+	{
+		// is Vertical
+		shortIdx = C;
+		longIdx = (cornerIdx == A) ? B : A;
+
+		// flip corner index to other side of quad
+		outVertices[cornerIdx] = *vertex[longIdx];
+		outVertices[cornerIdx].x = vertex[shortIdx]->x;
+
+		outPrim->verts[cornerIdx].y = srcVert[longIdx].y;
+		outPrim->verts[cornerIdx].u = srcVert[longIdx].u;
+		outPrim->verts[cornerIdx].v = srcVert[longIdx].v;
+		outPrim->verts[cornerIdx].x = srcVert[shortIdx].x;
+	}
+	else
+		return false;
+
+	// force UVs into a line along the upper or left most edge of the triangle
+	// Otherwise the wrong UVs will be sampled on second triangle and by hardware renderers
+	srcVert[shortIdx].u = srcVert[cornerIdx].u;
+	srcVert[shortIdx].v = srcVert[cornerIdx].v;
+
+
+	// write out second tri
+	outVertices[shortIdx] = *vertex[shortIdx];
+	outVertices[longIdx] = *vertex[longIdx];
+
+	outPrim->verts[longIdx].x = srcVert[longIdx].x;
+	outPrim->verts[longIdx].y = srcVert[longIdx].y;
+	outPrim->verts[longIdx].u = srcVert[longIdx].u;
+	outPrim->verts[longIdx].v = srcVert[longIdx].v;
+
+	outPrim->verts[shortIdx].x = srcVert[shortIdx].x;
+	outPrim->verts[shortIdx].y = srcVert[shortIdx].y;
+	outPrim->verts[shortIdx].u = srcVert[shortIdx].u;
+	outPrim->verts[shortIdx].v = srcVert[shortIdx].v;
+
+	return true;
+}
+
+
 PGXP::offset_fn PGXP::ooffset3;
 BOOL __cdecl PGXP::offset3(void)
 {
@@ -421,7 +632,44 @@ PGXP::primPoly_fn PGXP::oprimPolyFT3;
 void __cdecl PGXP::primPolyFT3(unsigned char *baseAddr)
 {
 	s_PGXP->GetVertices((u32*)baseAddr);
-	oprimPolyFT3(baseAddr);
+
+	flatTriPrim sourcePrimData;
+	flatTriPrim newPrimData;
+	OGLVertex newVertices[3];
+	bool isLine = false;
+
+	memcpy(&sourcePrimData, baseAddr, sizeof(flatTriPrim));
+
+	switch (s_PGXP->lineHackMode)
+	{
+	case 0:
+		// Disabled
+		break;
+	case 1:
+		// Default mode
+		isLine = s_PGXP->Hack_FindLine(&sourcePrimData, &newPrimData, newVertices);
+		break;
+	case 2:
+		// Aggressive mode
+		isLine = s_PGXP->Hack_ForceLine(&sourcePrimData, &newPrimData, newVertices);
+		break;
+	default:
+		// Disabled
+		break;
+	}
+
+	oprimPolyFT3((u8*)&sourcePrimData);
+
+	if(isLine)
+	{
+		//copy new vertices
+		for (u32 i = 0; i < 3; ++i)
+			*s_PGXP->vertex[i] = newVertices[i];
+
+		// Draw second triangle
+		oprimPolyFT3((u8*)&newPrimData);
+	}
+
 	s_PGXP->ResetVertex();
 }
 
@@ -480,6 +728,12 @@ void __cdecl PGXP::rectTexAlign(void)
 		return;
 
 	orectTexAlign();
+}
+
+PGXP::doLineCheck_fn PGXP::odoLineCheck;
+BOOL __cdecl PGXP::doLineCheck(u32* gpuData)
+{
+	return FALSE;
 }
 
 void (APIENTRY* PGXP::oglOrtho)(GLdouble left, GLdouble right, GLdouble bottom, GLdouble top, GLdouble zNear, GLdouble zFar);
